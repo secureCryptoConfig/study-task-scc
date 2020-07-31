@@ -5,6 +5,7 @@ import java.security.InvalidKeyException;
 import java.security.NoSuchAlgorithmException;
 import java.time.Instant;
 import java.util.ArrayList;
+import java.util.Base64;
 import java.util.Collections;
 import java.util.List;
 
@@ -83,10 +84,8 @@ public class Server extends Thread {
 		// store result of the validation. Default : false
 		boolean resultValidation = false;
 
-		// TODO Perform validation of the given "signature" with
-		// the already defined "key" of the client. 
-		//Return/Store the result in 'resultValidation' that shows if validation was (not) successful
-		
+		// TODO Perform validation of the given signature with
+		// the given key of the client. Store the result in 'resultValidation'
 
 		return resultValidation;
 
@@ -105,14 +104,18 @@ public class Server extends Thread {
 		byte[] encryptedOrder = null;
 		SCCKey key = new SCCKey(KeyType.Symmetric, masterKey, "AES");
 
-		// TODO Perform a symmetric encryption of the given "order" with the already
+		// TODO Perform a symmetric encryption of the given order with the already
 		// defined "key". Store the ciphertext in the already defined variable
 		// "encryptedOrder"
 
-		
+		p("encryptedOrder is (base64 encoded): "
+				+ (encryptedOrder != null ? Base64.getEncoder().encodeToString(encryptedOrder) : "null"));
 		// Add encrypted order in queue of client
-		return queues.get(clientId).add(encryptedOrder);
-		
+		if (encryptedOrder == null) {
+			return false;
+		} else {
+			return queues.get(clientId).add(encryptedOrder);
+		}
 	}
 
 	/**
@@ -126,12 +129,15 @@ public class Server extends Thread {
 	private String decryptOrder(byte[] encryptedOrder) throws CoseException {
 		SCCKey key = new SCCKey(KeyType.Symmetric, masterKey, "AES");
 		String decryptedOrder = null;
-		
-		// TODO Perform a symmetric decryption of the given "encryptedOrder" with the already
-		// defined "key". Store/Return the plaintext in the already defined String variable
+
+		// TODO Perform a symmetric decryption of the given encryptedOrder with the
+		// already
+		// defined "key". Store the plaintext in the already defined String variable
 		// "decryptedOrder"
+
 		
-		return null;
+		return decryptedOrder;
+
 	}
 
 	/**
@@ -150,20 +156,25 @@ public class Server extends Thread {
 
 	/**
 	 * Message get processed depending on its MessageType and validation result.
-	 * @param type BUY/SELL stock or GETORDERS
+	 * 
+	 * @param type             BUY/SELL stock or GETORDERS
 	 * @param clientId
 	 * @param isCorrectMessage shows if message signature was correct
-	 * @param signedMessage message sent from the client to server
+	 * @param signedMessage    message sent from the client to server
 	 * @return
 	 * @throws CoseException
 	 * @throws JsonProcessingException
 	 */
-	private  String parseMessage(MessageType type, int clientId, boolean isCorrectMessage, SignedMessage signedMessage ) throws CoseException, JsonProcessingException
-	{
+	private String parseMessage(MessageType type, int clientId, boolean isCorrectMessage, SignedMessage signedMessage)
+			throws CoseException, JsonProcessingException {
 		switch (type) {
 		case GetOrders:
 			CircularFifoQueue<byte[]> q = queues.get(clientId);
 			String answer = "";
+
+			if (q.size() == 0) {
+				return "no orders in queue";
+			}
 			for (int i = 0; i < q.size(); i++) {
 				byte[] encryptedOrder = q.get(i);
 				String decrypted = "";
@@ -174,15 +185,16 @@ public class Server extends Thread {
 		case BuyStock:
 		case SellStock:
 			boolean encryptionResult = saveOrderEncrypted(signedMessage.getContent().getBytes(), clientId);
-			if (encryptionResult == true) {
+			if (encryptionResult) {
 				return Message.createServerResponseMessage(isCorrectMessage);
 			} else {
-				return new String("{\"Failure during encryption\"}");
+				return "{\"Failure during encryption\"}";
 			}
 		default:
 			return new String("{\"Failure\"}");
 		}
 	}
+
 	/**
 	 * Processes incoming orders. Values of messages are read out and validation
 	 * process gets started. Server sends back a response to client showing if
@@ -204,13 +216,14 @@ public class Server extends Thread {
 			byte[] signature = signedMessage.getSignature();
 
 			isCorrectMessage = checkSignature(clientId, signedMessage.getContent().getBytes(), signature);
-
+			p("message signature is " + (isCorrectMessage ? "valid" : "not valid"));
 			if (isCorrectMessage == true) {
+
 				Message theMessage = mapper.readValue(signedMessage.getContent(), Message.class);
 				type = theMessage.getMessageType();
 
 				p(theMessage.getMessageType().toString());
-				
+
 				return parseMessage(type, clientId, isCorrectMessage, signedMessage);
 
 			} else {
@@ -234,14 +247,15 @@ public class Server extends Thread {
 
 	@Override
 	public void run() {
-		while (true) {
-			p("processing orders");
-			try {
-				Thread.sleep((long) (Math.random() * sendFrequency + 1));
-			} catch (InterruptedException e) {
-				e.printStackTrace();
-			}
+		// while (true) {
+		p("Server started");
+		// p("processing orders");
+		try {
+			Thread.sleep((long) (Math.random() * sendFrequency + 1));
+		} catch (InterruptedException e) {
+			e.printStackTrace();
 		}
+		// }
 	}
 
 }
