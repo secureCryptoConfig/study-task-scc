@@ -90,17 +90,17 @@ public class Client implements Runnable {
 		try {
 			key = SCCKey.createKey(KeyUseCase.Signing);
 
-			byte[] publicKey = key.getPublicKeyBytes();
+			byte[] keyBytes = key.decodeObjectToBytes();
 
-			int clientID = server.registerClient(publicKey);
+			int clientID = server.registerClient(keyBytes);
 			if (clientID == -1) {
 				throw new IllegalStateException("server does not seem to accept the client registration!");
 			}
 
-			Client c = new Client(clientID, key.decodeObjectToBytes(), server);
+			Client c = new Client(clientID, keyBytes, server);
 			return c;
 
-		} catch (SCCException | COSE.CoseException | InvalidKeyException e) {
+		} catch (SCCException | COSE.CoseException e) {
 			e.printStackTrace();
 			return null;
 		}
