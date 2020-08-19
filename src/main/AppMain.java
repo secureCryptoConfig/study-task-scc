@@ -1,7 +1,5 @@
 package main;
 
-import java.nio.file.Path;
-import java.nio.file.Paths;
 import java.security.NoSuchAlgorithmException;
 import java.time.Instant;
 import java.util.ArrayList;
@@ -11,8 +9,6 @@ import java.util.concurrent.ExecutionException;
 import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
 import java.util.concurrent.ThreadPoolExecutor;
-
-import org.securecryptoconfig.SecureCryptoConfig;
 
 import COSE.CoseException;
 
@@ -34,8 +30,7 @@ public class AppMain {
 	private static int maxClients = 1;
 
 	public static void main(String[] args) {
-		Path p = Paths.get("scc-configs");
-		SecureCryptoConfig.setCustomSCCPath(p);
+		
 
 		//Key for later Server encryption is generated
 		Server.masterKey = Server.generateKey();

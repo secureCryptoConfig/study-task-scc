@@ -15,7 +15,6 @@ import org.securecryptoconfig.PlaintextContainer;
 import org.securecryptoconfig.SCCCiphertext;
 import org.securecryptoconfig.SCCException;
 import org.securecryptoconfig.SCCKey;
-import org.securecryptoconfig.SCCKey.KeyType;
 import org.securecryptoconfig.SCCKey.KeyUseCase;
 import org.securecryptoconfig.SecureCryptoConfig;
 
@@ -78,9 +77,9 @@ public class Server extends Thread {
 	 * @throws CoseException
 	 */
 	private boolean checkSignature(int clientID, byte[] order, byte[] signature) throws CoseException {
-		byte[] publicKey = clients.get(clientID);
+		byte[] keyBytes = clients.get(clientID);
 		// Key of client. This key is used for signature validation
-		SCCKey key = new SCCKey(KeyType.Asymmetric, publicKey, null, "EC");
+		SCCKey key = SCCKey.createFromExistingKey(keyBytes);
 		// store result of the validation. Default : false
 		boolean resultValidation = false;
 
@@ -89,6 +88,7 @@ public class Server extends Thread {
 		// "resultValidation"
 		
 		// Catch possible occurring exceptions
+		
 
 		return resultValidation;
 
@@ -105,7 +105,7 @@ public class Server extends Thread {
 	private boolean saveOrderEncrypted(byte[] order, int clientId) throws CoseException {
 
 		byte[] encryptedOrder = null;
-		SCCKey key = new SCCKey(KeyType.Symmetric, masterKey, "AES");
+		SCCKey key = SCCKey.createFromExistingKey(masterKey);
 
 		// TODO Perform a symmetric encryption of the given "order" with the already
 		// defined "key". Store the ciphertext in the already defined variable
@@ -113,14 +113,14 @@ public class Server extends Thread {
 		
 		// Catch possible occurring exceptions
 
-		p("encryptedOrder is (base64 encoded): "
-				+ (encryptedOrder != null ? Base64.getEncoder().encodeToString(encryptedOrder) : "null"));
-		// Add encrypted order in queue of client
-		if (encryptedOrder == null) {
-			return false;
-		} else {
-			return queues.get(clientId).add(encryptedOrder);
-		}
+		
+		p("encryptedOrder is (base64 encoded): " + (encryptedOrder != null ? Base64.getEncoder().encodeToString(encryptedOrder) : "null"));
+        // Add encrypted order in queue of client
+        if(encryptedOrder == null) {
+            return false;
+        } else {
+            return queues.get(clientId).add(encryptedOrder);
+        }
 	}
 
 	/**
@@ -132,18 +132,16 @@ public class Server extends Thread {
 	 * @throws CoseException
 	 */
 	private String decryptOrder(byte[] encryptedOrder) throws CoseException {
-		SCCKey key = new SCCKey(KeyType.Symmetric, masterKey, "AES");
+		SCCKey key = SCCKey.createFromExistingKey(masterKey);
 		String decryptedOrder = null;
-
+		
 		// TODO Perform a symmetric decryption of the given "encryptedOrder" with the
 		// already defined "key". Store the plaintext in the already defined String
 		// variable "decryptedOrder"
 		
 		// Catch possible occurring exceptions
-
 		
 		return decryptedOrder;
-
 	}
 
 	/**
@@ -152,12 +150,14 @@ public class Server extends Thread {
 	 * @return byte[] key bytes
 	 */
 	public static byte[] generateKey() {
+		
 		try {
-			return SCCKey.createKey(KeyUseCase.SymmetricEncryption).toBytes();
-		} catch (SCCException | NoSuchAlgorithmException | CoseException e) {
+			return SCCKey.createKey(KeyUseCase.SymmetricEncryption).decodeObjectToBytes();
+		} catch (NoSuchAlgorithmException | CoseException | SCCException e) {
 			e.printStackTrace();
 			return null;
 		}
+		
 	}
 
 	/**
@@ -170,17 +170,17 @@ public class Server extends Thread {
 	 * @return String
 	 * @throws JsonProcessingException
 	 */
-	private String parseMessage(MessageType type, int clientId, boolean isCorrectMessage, SignedMessage signedMessage)
-			throws CoseException, JsonProcessingException {
+	private  String parseMessage(MessageType type, int clientId, boolean isCorrectMessage, SignedMessage signedMessage ) throws CoseException, JsonProcessingException
+	{
 		switch (type) {
 		case GetOrders:
 			CircularFifoQueue<byte[]> q = queues.get(clientId);
 			String answer = "";
-
-			if (q.size() == 0) {
-				return "no orders in queue";
-			}
-			for (int i = 0; i < q.size(); i++) {
+            
+            if (q.size() == 0) {
+                return "no orders in queue";
+            }
+            for (int i = 0; i < q.size(); i++) {
 				byte[] encryptedOrder = q.get(i);
 				String decrypted = "";
 				decrypted = decryptOrder(encryptedOrder);
@@ -189,8 +189,8 @@ public class Server extends Thread {
 			return answer;
 		case BuyStock:
 		case SellStock:
-			boolean encryptionResult = saveOrderEncrypted(signedMessage.getContent().getBytes(), clientId);
-			if (encryptionResult) {
+            boolean encryptionResult = saveOrderEncrypted(signedMessage.getContent().getBytes(), clientId);
+            if (encryptionResult) {
 				return Message.createServerResponseMessage(isCorrectMessage);
 			} else {
 				return "{\"Failure during encryption\"}";
@@ -199,7 +199,6 @@ public class Server extends Thread {
 			return new String("{\"Failure\"}");
 		}
 	}
-
 	/**
 	 * Processes incoming orders. Values of messages are read out and validation
 	 * process gets started. Server sends back a response to client showing if
@@ -221,14 +220,14 @@ public class Server extends Thread {
 			byte[] signature = signedMessage.getSignature();
 
 			isCorrectMessage = checkSignature(clientId, signedMessage.getContent().getBytes(), signature);
-			p("message signature is " + (isCorrectMessage ? "valid" : "not valid"));
+            p("message signature is " + (isCorrectMessage ? "valid" : "not valid"));
 			if (isCorrectMessage == true) {
-
+                
 				Message theMessage = mapper.readValue(signedMessage.getContent(), Message.class);
 				type = theMessage.getMessageType();
 
 				p(theMessage.getMessageType().toString());
-
+				
 				return parseMessage(type, clientId, isCorrectMessage, signedMessage);
 
 			} else {
@@ -253,13 +252,13 @@ public class Server extends Thread {
 	@Override
 	public void run() {
 		
-		p("Server started");
-		
-		try {
-			Thread.sleep((long) (Math.random() * sendFrequency + 1));
-		} catch (InterruptedException e) {
-			e.printStackTrace();
-		}
+            p("Server started");
+           
+			try {
+				Thread.sleep((long) (Math.random() * sendFrequency + 1));
+			} catch (InterruptedException e) {
+				e.printStackTrace();
+			}
 		
 	}
 

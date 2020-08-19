@@ -4,11 +4,8 @@ import java.security.InvalidKeyException;
 import java.security.NoSuchAlgorithmException;
 import java.time.Instant;
 import java.util.Base64;
-import java.util.Random;
-
 import org.securecryptoconfig.SCCException;
 import org.securecryptoconfig.SCCKey;
-import org.securecryptoconfig.SCCKey.KeyType;
 import org.securecryptoconfig.SCCKey.KeyUseCase;
 import org.securecryptoconfig.SCCSignature;
 import org.securecryptoconfig.SecureCryptoConfig;
@@ -32,21 +29,18 @@ public class Client implements Runnable {
 	private static int sendFrequency = 5000;
 	
 	int clientID;
-	byte[] publicKey;
-	byte[] privateKey;
+	byte[] keyBytes;
 	Server server;
 
 	/**
 	 * Constructor of client
 	 * @param clientID
-	 * @param publicKey
-	 * @param privateKey
+	 * @param keyBytes
 	 * @param server
 	 */
-	private Client(int clientID, byte[] publicKey, byte[] privateKey, Server server) {
+	private Client(int clientID, byte[] keyBytes, Server server) {
 		this.clientID = clientID;
-		this.publicKey = publicKey;
-		this.privateKey = privateKey;
+		this.keyBytes = keyBytes;
 		this.server = server;
 	}
 
@@ -62,14 +56,13 @@ public class Client implements Runnable {
 	/**
 	 * Methods that signs the client order with the corresponding key
 	 * @param order
-	 * @param publicKey
-	 * @param privateKey
+	 * @param keyBytes
 	 * @return byte[] : signature
 	 * @throws CoseException
 	 */
-	private static byte[] signMessage(String order, byte[] publicKey, byte[] privateKey) throws CoseException {
+	private static byte[] signMessage(String order, byte[] keyBytes) throws CoseException {
 		
-		SCCKey key = new SCCKey(KeyType.Asymmetric, publicKey, privateKey, "EC");
+		SCCKey key = SCCKey.createFromExistingKey(keyBytes);
 		
 		//TODO: Perform signing of the parameter "order" with the given SCCKey "key"
 		// Catch possible occurring exceptions
@@ -104,10 +97,10 @@ public class Client implements Runnable {
 				throw new IllegalStateException("server does not seem to accept the client registration!");
 			}
 
-			Client c = new Client(clientID, key.getPublicKeyBytes(), key.getPrivateKeyBytes(), server);
+			Client c = new Client(clientID, key.decodeObjectToBytes(), server);
 			return c;
 
-		} catch (SCCException | COSE.CoseException e) {
+		} catch (SCCException | COSE.CoseException | InvalidKeyException e) {
 			e.printStackTrace();
 			return null;
 		}
@@ -141,7 +134,7 @@ public class Client implements Runnable {
 	 */
 	private void sendMessage(String message) throws CoseException, JsonProcessingException {
         p("creating signature for message: " + message);
-        byte[] signature = signMessage(message, publicKey, privateKey);
+        byte[] signature = signMessage(message, keyBytes);
         p("signature is (base64 encoded): " + (signature.length > 0 ? Base64.getEncoder().encodeToString(signature) : "null"));
 		String signedMessage = SignedMessage.createSignedMessage(this.clientID, message, signature);
 
